@@ -20,3 +20,9 @@ optional arguments:
                               0xBEF3
 
 ```
+
+Build an executable jar with
+```
+./gradlew shadowjar
+```
+It is then available in build/libs
