@@ -16,8 +16,16 @@ import kotlin.experimental.and
 
 class MyArgs(parser: ArgParser) {
     val temperature by parser.storing("-t", "--temperature", help = "The temperature") { toInt() }
-    val vendorId by parser.storing("-v", "--vendor-id", help = "The vendor id as hex like: '0451'\nDefault is 0x0451") { toInt(16) }.default(0x0451)
-    val deviceId by parser.storing("-d", "--device-id", help = "The device id as hex like: 'BEF3'\nDefault is 0xBEF3") { toInt(16) }.default(0xBEF3)
+
+    val vendorId by parser.storing(
+            "-v", "--vendor-id",
+            help = "The vendor id as hex like: '0451'\nDefault is 0x0451"
+    ) { toInt(16) }.default(0x0451)
+
+    val deviceId by parser.storing(
+            "-d", "--device-id",
+            help = "The device id as hex like: 'BEF3'\nDefault is 0xBEF3")
+    { toInt(16) }.default(0xBEF3)
 }
 
 fun main(args: Array<String>) {
@@ -27,51 +35,54 @@ fun main(args: Array<String>) {
             //0x0451 vendorId
             val services = UsbHostManager.getUsbServices()
 
-
+            val device = findDevice(services.rootUsbHub, vendorId, deviceId)
 
             println("USB Service Implementation:" + services.impDescription)
             println("Implementation version: " + services.impVersion)
             println("Service API version: " + services.apiVersion)
 
-            val findDevice = findDevice(services.rootUsbHub, vendorId, deviceId)
+            if (device == null) {
+                println("No device found with given vendorId and deviceId")
+                return@mainBody
+            }
 
-            findDevice?.let {
-                println(it.manufacturerString)
+            println("Device with manufacturer " + device.manufacturerString + " found!")
 
-                val iface = it.activeUsbConfiguration.getUsbInterface(1)
-                iface.claim { true }
-                try {
-                    for (usbEndpoint in iface.usbEndpoints) {
-                        if (usbEndpoint is UsbEndpoint) {
-                            println(usbEndpoint.usbEndpointDescriptor.bEndpointAddress())
-                        }
+            val iface = device.activeUsbConfiguration.getUsbInterface(1)
+            iface.claim { true }
+            try {
+                for (usbEndpoint in iface.usbEndpoints) {
+                    if (usbEndpoint is UsbEndpoint) {
+                        println(usbEndpoint.usbEndpointDescriptor.bEndpointAddress())
                     }
-                    val endpoint: UsbEndpoint? = iface.getUsbEndpoint(0x01.toByte())
-
-                    endpoint?.let {
-                        println("not null!")
-                        val pipe = it.usbPipe
-                        pipe.open()
-
-                        pipe.addUsbPipeListener(object : UsbPipeListener {
-                            override fun dataEventOccurred(event: UsbPipeDataEvent?) {
-                                println(event?.data?.asList()?.map { it.toHex() })
-                            }
-
-                            override fun errorEventOccurred(event: UsbPipeErrorEvent?) {
-                                TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-                            }
-
-                        })
-//                        while (true) {
-                        val sendTemperature = createTemperatureDataFrame(temperature)
-                        pipe.syncSubmit(sendTemperature)
-                        Thread.sleep(2000)
-//                        }
-                    }
-                } finally {
-                    iface.release();
                 }
+                val endpoint: UsbEndpoint? = iface.getUsbEndpoint(0x01.toByte())
+
+                endpoint?.let {
+                    val pipe = it.usbPipe
+
+                    pipe.open()
+                    pipe.addUsbPipeListener(object : UsbPipeListener {
+                        override fun dataEventOccurred(event: UsbPipeDataEvent?) {
+                            event?.data?.let {
+                                println("Received" + it.asList().map { it.toHex() } + " from device")
+                            }
+                        }
+
+                        override fun errorEventOccurred(event: UsbPipeErrorEvent?) {
+                            println("Error while receiving data!")
+                        }
+                    })
+
+                    val sendTemperature = createTemperatureDataFrame(temperature)
+
+                    println("Sending " + sendTemperature.map { it.toHex() }.toList())
+
+                    pipe.syncSubmit(sendTemperature)
+                    Thread.sleep(2000)
+                }
+            } finally {
+                iface.release();
             }
         }
     }
@@ -106,10 +117,6 @@ private fun createTemperatureDataFrame(temperature: Int): ByteArray {
     buf[5] = (shiftShortRightBy(crc, 8) and 0xFF).toByte()  // crc16
 
     return buf
-}
-
-fun Short.toHex(): String {
-    return Integer.toHexString(this.toInt() and 0xffff)
 }
 
 fun Byte.toHex(): String {
