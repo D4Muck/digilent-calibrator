@@ -5,32 +5,17 @@ import at.d4m.digilentcalibrator.Sachen.shiftShortRightBy
 import com.fazecast.jSerialComm.SerialPort
 import com.fazecast.jSerialComm.SerialPort.NO_PARITY
 import com.xenomachina.argparser.ArgParser
-import com.xenomachina.argparser.default
 import com.xenomachina.argparser.mainBody
 import kotlin.experimental.and
 
-
 class MyArgs(parser: ArgParser) {
     val temperature by parser.storing("-t", "--temperature", help = "The temperature") { toInt() }
-
-    val vendorId by parser.storing(
-            "-v", "--vendor-id",
-            help = "The vendor id as hex like: '0451'\nDefault is 0x0451"
-    ) { toInt(16) }.default(0x0451)
-
-    val deviceId by parser.storing(
-            "-d", "--device-id",
-            help = "The device id as hex like: 'BEF3'\nDefault is 0xBEF3")
-    { toInt(16) }.default(0xBEF3)
 }
 
 fun main(args: Array<String>) {
     mainBody {
         MyArgs(ArgParser(args)).run {
-            //0xBEF3 deviceId
-            //0x0451 vendorId
-
-
+            val temp = temperature
             val serialPort = SerialPort.getCommPorts().filter { it.descriptivePortName.contains("XDS110") }.firstOrNull() ?: error("No board found")
 
             println("Using " + serialPort.descriptivePortName)
@@ -40,8 +25,7 @@ fun main(args: Array<String>) {
             serialPort.numDataBits = 8
             serialPort.numStopBits = 1
 
-
-            val sendTemperature = createTemperatureDataFrame(temperature)
+            val sendTemperature = createTemperatureDataFrame(temp)
 
             println("Sending " + sendTemperature.map { it.toHex() }.toList())
 
