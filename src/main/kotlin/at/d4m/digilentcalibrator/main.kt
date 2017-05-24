@@ -2,17 +2,13 @@ package at.d4m.digilentcalibrator
 
 import at.d4m.digilentcalibrator.Sachen.crc16
 import at.d4m.digilentcalibrator.Sachen.shiftShortRightBy
+import com.fazecast.jSerialComm.SerialPort
+import com.fazecast.jSerialComm.SerialPort.NO_PARITY
 import com.xenomachina.argparser.ArgParser
 import com.xenomachina.argparser.default
 import com.xenomachina.argparser.mainBody
-import javax.usb.UsbDevice
-import javax.usb.UsbEndpoint
-import javax.usb.UsbHostManager
-import javax.usb.UsbHub
-import javax.usb.event.UsbPipeDataEvent
-import javax.usb.event.UsbPipeErrorEvent
-import javax.usb.event.UsbPipeListener
 import kotlin.experimental.and
+
 
 class MyArgs(parser: ArgParser) {
     val temperature by parser.storing("-t", "--temperature", help = "The temperature") { toInt() }
@@ -33,72 +29,41 @@ fun main(args: Array<String>) {
         MyArgs(ArgParser(args)).run {
             //0xBEF3 deviceId
             //0x0451 vendorId
-            val services = UsbHostManager.getUsbServices()
 
-            val device = findDevice(services.rootUsbHub, vendorId, deviceId)
 
-            println("USB Service Implementation:" + services.impDescription)
-            println("Implementation version: " + services.impVersion)
-            println("Service API version: " + services.apiVersion)
+            val t = SerialPort.getCommPorts()
 
-            if (device == null) {
-                println("No device found with given vendorId and deviceId")
-                return@mainBody
+            for (serialPort in t) {
+                println(serialPort.descriptivePortName)
+                println(serialPort.systemPortName)
             }
 
-            println("Device with manufacturer " + device.manufacturerString + " found!")
+            val serialPort = t[0]
 
-            val iface = device.activeUsbConfiguration.getUsbInterface(1)
-            iface.claim { true }
-            try {
-                for (usbEndpoint in iface.usbEndpoints) {
-                    if (usbEndpoint is UsbEndpoint) {
-                        println(usbEndpoint.usbEndpointDescriptor.bEndpointAddress())
-                    }
-                }
-                val endpoint: UsbEndpoint? = iface.getUsbEndpoint(0x01.toByte())
+//             serialPort1.PortName = comboBox1.SelectedItem.ToString();
+//            serialPort1.BaudRate = 9600;
+//            serialPort1.Parity = System.IO.Ports.Parity.None;
+//            serialPort1.DataBits = 8;
+//            serialPort1.StopBits = System.IO.Ports.StopBits.One;
+//            serialPort1.Handshake = System.IO.Ports.Handshake.None;
 
-                endpoint?.let {
-                    val pipe = it.usbPipe
+            serialPort.baudRate = 9600
+            serialPort.parity = NO_PARITY
+            serialPort.numDataBits = 8
+            serialPort.numStopBits = 1
 
-                    pipe.open()
-                    pipe.addUsbPipeListener(object : UsbPipeListener {
-                        override fun dataEventOccurred(event: UsbPipeDataEvent?) {
-                            event?.data?.let {
-                                println("Received" + it.asList().map { it.toHex() } + " from device")
-                            }
-                        }
 
-                        override fun errorEventOccurred(event: UsbPipeErrorEvent?) {
-                            println("Error while receiving data!")
-                        }
-                    })
+            val sendTemperature = createTemperatureDataFrame(temperature)
 
-                    val sendTemperature = createTemperatureDataFrame(temperature)
+            println("Sending " + sendTemperature.map { it.toHex() }.toList())
 
-                    println("Sending " + sendTemperature.map { it.toHex() }.toList())
-
-                    pipe.syncSubmit(sendTemperature)
-                    Thread.sleep(2000)
-                }
-            } finally {
-                iface.release();
-            }
+            println(serialPort.openPort())
+            serialPort.outputStream.write(sendTemperature)
+            serialPort.outputStream.flush()
+            serialPort.closePort()
+            Thread.sleep(2000)
         }
     }
-}
-
-private fun findDevice(hub: UsbHub, vendorId: Int = 0, productId: Int = 0): UsbDevice? {
-    for (device in hub.attachedUsbDevices) {
-        if (device is UsbDevice) {
-            val desc = device.usbDeviceDescriptor
-            if (desc.idVendor() == vendorId.toShort() && desc.idProduct() == productId.toShort()) return device
-            if (device is UsbHub) {
-                findDevice(device, vendorId, productId)?.let { return it }
-            }
-        }
-    }
-    return null
 }
 
 private fun createTemperatureDataFrame(temperature: Int): ByteArray {
