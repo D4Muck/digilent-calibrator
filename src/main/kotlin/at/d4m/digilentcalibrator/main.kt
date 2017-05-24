@@ -31,21 +31,9 @@ fun main(args: Array<String>) {
             //0x0451 vendorId
 
 
-            val t = SerialPort.getCommPorts()
+            val serialPort = SerialPort.getCommPorts().filter { it.descriptivePortName.contains("XDS110") }.firstOrNull() ?: error("No board found")
 
-            for (serialPort in t) {
-                println(serialPort.descriptivePortName)
-                println(serialPort.systemPortName)
-            }
-
-            val serialPort = t[0]
-
-//             serialPort1.PortName = comboBox1.SelectedItem.ToString();
-//            serialPort1.BaudRate = 9600;
-//            serialPort1.Parity = System.IO.Ports.Parity.None;
-//            serialPort1.DataBits = 8;
-//            serialPort1.StopBits = System.IO.Ports.StopBits.One;
-//            serialPort1.Handshake = System.IO.Ports.Handshake.None;
+            println("Using " + serialPort.descriptivePortName)
 
             serialPort.baudRate = 9600
             serialPort.parity = NO_PARITY
