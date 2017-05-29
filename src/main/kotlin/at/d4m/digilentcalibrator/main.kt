@@ -12,6 +12,7 @@ import kotlin.experimental.and
 
 class MyArgs(parser: ArgParser) {
     val temperature by parser.storing("-t", "--temperature", help = "The temperature") { toInt() }
+    val indexArg by parser.storing("-i", "--index", help = "The index of the device") { toInt() }.default(-1)
 
     val vendorId by parser.storing(
             "-v", "--vendor-id",
@@ -30,8 +31,16 @@ fun main(args: Array<String>) {
             //0xBEF3 deviceId
             //0x0451 vendorId
 
+            val commPorts = SerialPort.getCommPorts()
+            var index = indexArg
+            if (index < 0 || index >= commPorts.size) {
+                commPorts.forEachIndexed { index, serialPort -> println(index.toString() + " " + serialPort.descriptivePortName) }
 
-            val serialPort = SerialPort.getCommPorts().filter { it.descriptivePortName.contains("XDS110") }.firstOrNull() ?: error("No board found")
+                println("Please choose device")
+                index = Integer.parseInt(readLine())
+            }
+
+            val serialPort = commPorts[index]
 
             println("Using " + serialPort.descriptivePortName)
 
