@@ -9,20 +9,9 @@ import com.xenomachina.argparser.default
 import com.xenomachina.argparser.mainBody
 import kotlin.experimental.and
 
-
 class MyArgs(parser: ArgParser) {
     val temperature by parser.storing("-t", "--temperature", help = "The temperature") { toInt() }
     val indexArg by parser.storing("-i", "--index", help = "The index of the device") { toInt() }.default(-1)
-
-    val vendorId by parser.storing(
-            "-v", "--vendor-id",
-            help = "The vendor id as hex like: '0451'\nDefault is 0x0451"
-    ) { toInt(16) }.default(0x0451)
-
-    val deviceId by parser.storing(
-            "-d", "--device-id",
-            help = "The device id as hex like: 'BEF3'\nDefault is 0xBEF3")
-    { toInt(16) }.default(0xBEF3)
 }
 
 fun main(args: Array<String>) {
@@ -31,8 +20,11 @@ fun main(args: Array<String>) {
             //0xBEF3 deviceId
             //0x0451 vendorId
 
-            val commPorts = SerialPort.getCommPorts()
             var index = indexArg
+            val temp = temperature
+
+            val commPorts = SerialPort.getCommPorts()
+
             if (index < 0 || index >= commPorts.size) {
                 commPorts.forEachIndexed { index, serialPort -> println(index.toString() + " " + serialPort.descriptivePortName) }
 
@@ -49,8 +41,7 @@ fun main(args: Array<String>) {
             serialPort.numDataBits = 8
             serialPort.numStopBits = 1
 
-
-            val sendTemperature = createTemperatureDataFrame(temperature)
+            val sendTemperature = createTemperatureDataFrame(temp)
 
             println("Sending " + sendTemperature.map { it.toHex() }.toList())
 
